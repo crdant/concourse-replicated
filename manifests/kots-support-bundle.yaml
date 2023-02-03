@@ -4,9 +4,104 @@ metadata:
   name: support-bundle
 spec:
   collectors:
-    - clusterInfo: {}
-    - clusterResources: {}
-    - logs:
-        selector:
-          - app=nginx
-        namespace: '{{repl Namespace }}'
+  - clusterInfo: {}
+  - clusterResources: {}
+  - registryImages:
+      name: '{{repl Namespace}}-images'
+      namespace: '{{ repl Namespace }}'
+      images:
+      - concourse/concourse:7.9.0
+      - docker.io/bitnami/postgresql:14.5.0-debian-11-r24
+  - logs:
+      name: app/concourse-web/logs
+      selector:
+      - app=concourse-web
+      - release=concourse
+      containerNames:
+      - concourse-web
+      limits:
+        maxAge: 720h
+  - logs:
+      name: app/concourse-postgresql/logs
+      selector:
+      - app.kubernetes.io/name=postgresql
+      - app.kubernetes.io/instance=concourse
+      - app.kubernetes.io/component=primary
+      containerNames:
+      - postgresql
+      limits:
+        maxAge: 720h
+  - logs:
+      name: app/concourse-worker/logs
+      selector:
+      - app=concourse-worker
+      - release=concourse
+      containerNames:
+      - concourse-worker
+      limits:
+        maxAge: 720h
+  analyzers:
+  - deploymentStatus:
+      name: concourse-web
+      outcomes:
+      - fail:
+          when: "absent" # note that the "absent" failure state must be listed first if used.
+          message: The concourse-web deployment is not present.
+      - fail:
+          when: "< 1"
+          message: The concourse-web deployment does not have any ready replicas.
+      - warn:
+          when: "= 1"
+          message: The concourse-web deployment has only than the required number of replicas.
+      - warn:
+          when: "= 1"
+          message: The concourse-web deployment has only a single ready replica.
+      - pass:
+          message: There are multiple replicas of the concourse-web deployment ready.
+  - statefulsetStatus:
+      name: concourse-postgresql
+      when: '{{repl ConfigOptionEquals "postgres_type" "embedded_postgres"}}'
+      outcomes:
+      - fail:
+          when: "absent" # note that the "absent" failure state must be listed first if used.
+          message: The concourse-postgresql StatefulSet is not present.
+      - warn:
+          when: "= 1"
+          message: The concourse-postgresql StatefulSet has only than the required number of replicas.
+      - fail:
+          when: "< 1"
+          message: The concourse-postgresql StatefulSet does not have any ready replicas.
+      - warn:
+          when: "= 1"
+          message: The concourse-postgresql StatefulSet has only a single ready replica.
+      - pass:
+          message: There are multiple replicas of the concourse-postgresql StatefulSet ready.
+  - statefulsetStatus:
+      name: concourse-worker
+      outcomes:
+      - fail:
+          when: "absent" # note that the "absent" failure state must be listed first if used.
+          message: The concourse-worker StatefulSet is not present.
+      - warn:
+          when: "= 2"
+          message: The concourse-worker StatefulSet has only than the required number of replicas.
+      - fail:
+          when: "< 1"
+          message: The concourse-worker StatefulSet does not have any ready replicas.
+      - warn:
+          when: "= 1"
+          message: The concourse-worker StatefulSet has only a single ready replica.
+      - pass:
+          message: There are multiple replicas of the concourse-worker StatefulSet ready.
+  - registryImages:
+      name: Registry Images
+      collectorName: concourse
+      outcomes:
+      - fail:
+          when: "missing > 0"
+          message: Images are missing from registry
+      - warn:
+          when: "errors > 0"
+          message: Failed to check if images are present in registry
+      - pass:
+          message: All images are present in registry
