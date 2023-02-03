@@ -1,0 +1,74 @@
+apiVersion: kots.io/v1beta1
+kind: HelmChart
+metadata:
+  name: concourse
+
+spec:
+  chart:
+    name: concourse
+    chartVersion: 17.1.0
+
+  # helmVersion identifies the Helm Version used to render the Chart. Default is v2.
+  helmVersion: v3
+
+  # useHelmInstall identifies whether this Helm chart will use the
+  # Replicated Helm installation (false) or native Helm installation (true). Default is false.
+  # Native Helm installations are only available for Helm v3 charts.
+  useHelmInstall: true
+
+  values: {}
+
+  optionalValues:
+  - when: 'repl{{ not ( empty ( ConfigOption "fqdn" )) }}'
+    recursiveMerge: true
+    values:
+      ingress:
+        enabled: true
+        annotations:
+          kubernetes.io/tls-acme: "true"
+          projectcontour.io/websocket-routes: "/"
+          ingress.kubernetes.io/force-ssl-redirect: "true"
+        hosts:
+        - host: repl{{ ConfigOption "fqdn" }}
+          paths:
+          - /
+        tls:
+        - hosts:
+          - repl{{ ConfigOption "fqdn" }}
+          secretName: concourse-cert 
+  - when: '{{repl ConfigOptionEquals "postgres_type" "embedded_postgres"}}'
+    recursiveMerge: true
+    values:
+      postgresql:
+        enabled: true
+        auth:
+          username: repl{{ ConfigOption "embedded_postgres_username" }}
+          password: repl{{ ConfigOption "embedded_postgres_password" }}
+          database: repl{{ ConfigOption "embedded_postgres_database" }}
+  - when: '{{repl ConfigOptionEquals "postgres_type" "external_postgres"}}'
+    recursiveMerge: true
+    values:
+      web:
+        postgres:
+          host: repl{{ ConfigOption "external_postgres_host" }}
+          port: repl{{ ConfigOption "external_postgres_port" }}
+          sslmode: repl{{ ConfigOptionEquals "external_postgres_tls" "1" | ternary "enable" "disable" }}
+          database: repl{{ ConfigOption "external_postgres_database" }}
+      secrets:
+        postgresUser: repl{{ ConfigOption "external_postgres_username" }}
+        postgresPassword: repl{{ ConfigOption "external_postgres_password" }}
+  - when: '{{repl ConfigOption "external_postgres_ca_cert"}}'
+    recursiveMerge: true
+    values:
+      secrets:
+        postgresCaCert: repl{{ ConfigOptionData "external_postgres_ca_cert" | nindent 4}}
+         
+  # When building AirGap, metrics needs to be explicitly enabled so the prometheus image can be bundled along. 
+  # Kots does not include the image unless the service is explicitly enabled during the bundle building process.
+  builder:
+    concourse:
+      enabled: true
+    admin-console:
+      enabled: true
+    postgres:
+      enabled: true
