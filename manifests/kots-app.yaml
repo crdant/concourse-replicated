@@ -2,14 +2,14 @@
 apiVersion: kots.io/v1beta1
 kind: Application
 metadata:
-  name: nginx
+  name: concourse
 spec:
-  title: App Name
-  icon: https://raw.githubusercontent.com/cncf/artwork/master/projects/kubernetes/icon/color/kubernetes-icon-color.png
+  title: Concourse
+  icon: https://raw.githubusercontent.com/github/explore/9667ad51f45046641549d13751e5b10ab2a888bb/topics/concourse-ci/concourse-ci.png
   statusInformers:
-    - deployment/nginx
+  - deployment/concourse-web
   ports:
-    - serviceName: "nginx"
-      servicePort: 80
-      localPort: 8888
-      applicationUrl: "http://nginx"
+  - serviceName: "concourse-web"
+    servicePort: 8080
+    localPort: 8888
+    applicationUrl: "http://concourse-web"
